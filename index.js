@@ -14,10 +14,10 @@ const STAFF_ROLE_ID = '1431931072098340934';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
 const PRIORITARIA_CATEGORY_ID = '1431931152110261530'; 
 const WELCOME_CHANNEL_ID = '143209311299433352';
-const RULES_CHANNEL_ID = '1432093119752886839';
+const RULES_CHANNEL_CHANNEL_ID = '1432093119752886839'; 
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
-// ID DEI CANALI VOCALI DI ASSISTENZA (usati solo come riferimento testuale nella convocazione)
+// ID DEI CANALI VOCALI DI ASSISTENZA (Non usati, ma mantenuti per consistenza)
 const ASSISTENZA_VOCALE_ID_GENERALE = '1431931307427893390'; 
 const ASSISTENZA_VOCALE_ID_AZIONI = '1431931309214797915'; 
 
@@ -174,60 +174,50 @@ async function createTicket(interaction, type, isPriority = false) {
 }
 
 async function handleConvoca(interaction, convocaType) {
-    // Inizia la risposta differita per evitare il timeout
+    // 1. Risposta differita per evitare il timeout (necessario per tutti i comandi slash)
     await interaction.deferReply({ flags: EPHEMERAL_FLAG });
 
-    const staffRole = interaction.guild.roles.cache.get(STAFF_ROLE_ID);
     const convocaChannel = interaction.guild.channels.cache.get(CONVOCA_CHANNEL_ID);
-    const motivo = interaction.options.getString('motivo');
     const targetUser = interaction.options.getUser('utente');
     
     const assistenzaTypeLabel = convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale/Informazioni';
+    const motivo = interaction.options.getString('motivo'); // Mantieni il motivo per il log interno/staff
 
-    if (!staffRole || !convocaChannel) {
-        // Logga l'errore in console e invia una risposta effimera
-        console.error(`Errore di configurazione per Convoca: Ruolo Staff: ${!!staffRole}, Canale Convoca: ${!!convocaChannel}. Controlla gli ID.`);
-        return interaction.editReply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato). Il bot non può procedere. Controlla gli ID.', flags: EPHEMERAL_FLAG });
+    if (!convocaChannel) {
+        console.error(`Errore di configurazione per Convoca: Canale Convoca non trovato: ${CONVOCA_CHANNEL_ID}. Controlla gli ID.`);
+        return interaction.editReply({ content: 'Errore di configurazione del comando Convoca (canale non trovato). Il bot non può procedere. Controlla l\'ID del canale di convocazione.', flags: EPHEMERAL_FLAG });
     }
 
-    // 1. INVIA MESSAGGIO PRIVATO (DM) SOLO TESTO
+    // 2. INVIA MESSAGGIO PRIVATO (DM) MINIMALISTA
     const dmEmbed = new EmbedBuilder()
         .setColor('#FF0000') 
         .setTitle(`🚨 SEI STATO CONVOCATO IN ASSISTENZA 🚨`)
-        .setDescription(`Sei stato convocato dallo Staff di Nexus RP per il seguente motivo:\n\n**Tipo Convocazione:** ${assistenzaTypeLabel}\n**Motivo:** ${motivo}\n\nPer favore, connettiti al canale vocale di Assistenza.`)
+        .setDescription(`Sei stato convocato dallo Staff di Nexus RP in assistenza per **${assistenzaTypeLabel}**. Per favore, connettiti subito al canale vocale di Assistenza.`)
         .setThumbnail(NEXUS_LOGO_URL);
 
     try {
         await targetUser.send({ embeds: [dmEmbed] });
         
         // Risposta effimera all'utente che ha eseguito il comando (lo staff)
-        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. Gli è stato inviato un messaggio privato che lo informa della convocazione.`, flags: EPHEMERAL_FLAG });
+        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo || 'non specificato'}**. Gli è stato inviato un messaggio privato che lo informa della convocazione.`, flags: EPHEMERAL_FLAG });
 
     } catch (error) {
         console.error(`Impossibile inviare DM a ${targetUser.tag}:`, error);
-        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. ATTENZIONE: Non è stato possibile inviare il messaggio privato. Lo staff è stato comunque notificato.`, flags: EPHEMERAL_FLAG });
+        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo || 'non specificato'}**. ATTENZIONE: Non è stato possibile inviare il messaggio privato. Lo staff è stato comunque notificato.`, flags: EPHEMERAL_FLAG });
     }
     
-    // 2. INVIA MESSAGGIO PUBBLICO NEL CANALE CONVOCA
-    const convocaEmbed = new EmbedBuilder()
-        .setColor('#FF0000') 
-        .setTitle(`🔔 Nuova Convocazione Pubblica - ${assistenzaTypeLabel.toUpperCase()}`)
-        .setDescription(`L'utente ${targetUser} è stato convocato in Assistenza per il motivo: **${motivo}**!`)
-        .addFields(
-            { name: 'Tipo', value: assistenzaTypeLabel, inline: true },
-            { name: 'Utente Convocato', value: `${targetUser.tag}`, inline: true }
-        )
-        .setTimestamp();
+    // 3. INVIA MESSAGGIO PUBBLICO NEL CANALE CONVOCA (Minimalista)
+    // Nessun embed, solo testo, senza menzione staff
+    const publicMessageContent = `🚨 L'utente ${targetUser} è stato convocato in Assistenza (${assistenzaTypeLabel})!`;
         
     await convocaChannel.send({ 
-        content: `<@&${staffRole.id}>, c'è una nuova convocazione!`, 
-        embeds: [convocaEmbed] 
+        content: publicMessageContent
     });
 }
 
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
-    const rulesChannel = member.guild.channels.cache.get(RULES_CHANNEL_ID);
+    const rulesChannel = member.guild.channels.cache.get(RULES_CHANNEL_CHANNEL_ID);
 
     if (!welcomeChannel) return;
 
@@ -238,7 +228,7 @@ client.on('guildMemberAdd', async member => {
             `Ciao ${member}!
             Siamo entusiasti di averti a bordo! Nexus RP è il luogo dove la tua avventura prende vita.
 
-            Per cominciare, sei invitato a leggere attentamente il nostro **regolamento server** presente sul canale <#${RULES_CHANNEL_ID}>.
+            Per cominciare, sei invitato a leggere attentamente il nostro **regolamento server** presente sul canale <#${RULES_CHANNEL_CHANNEL_ID}>.
 
             Una volta letto, potrai goderti appieno la tua esperienza. **BUON RP!**`
         )
@@ -256,12 +246,15 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
         const { commandName } = interaction;
 
-        if (commandName === 'setup_ticket_panel') {
+        // Esegue un controllo rapido per i comandi staff: setup e close
+        if (commandName === 'setup_ticket_panel' || commandName === 'close') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && 
                 !interaction.member.roles.cache.has(STAFF_ROLE_ID)) {
                 return interaction.reply({ content: 'Non hai il permesso di eseguire questo comando.', flags: EPHEMERAL_FLAG });
             }
+        }
 
+        if (commandName === 'setup_ticket_panel') {
             await interaction.deferReply({ flags: EPHEMERAL_FLAG });
             await sendTicketPanel(TICKET_PANEL_CHANNEL_ID);
             return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', flags: EPHEMERAL_FLAG });
@@ -312,16 +305,16 @@ client.on('interactionCreate', async interaction => {
 async function registerSlashCommandsGlobally() {
     const commonOptions = [
         {
-            name: 'motivo',
-            description: 'Il motivo della convocazione. (Obbligatorio)',
-            type: 3, // STRING
-            required: true, 
-        },
-        {
             name: 'utente',
             description: 'L\'utente da convocare.',
             type: 6, // USER
             required: true, 
+        },
+        {
+            name: 'motivo',
+            description: 'Il motivo della convocazione. (Facoltativo)',
+            type: 3, // STRING
+            required: false, // RESO FACOLTATIVO
         },
     ];
     
@@ -338,11 +331,13 @@ async function registerSlashCommandsGlobally() {
             name: 'convoca',
             description: 'Convoca un utente per un colloquio in assistenza generale.',
             options: commonOptions,
+            defaultMemberPermissions: [PermissionFlagsBits.ManageChannels] // Permesso di base, può essere ristretto con l'integrazione di Discord
         },
         { 
             name: 'convoca_azioni',
             description: 'Convoca un utente per un colloquio su azioni/contestazioni.',
             options: commonOptions,
+            defaultMemberPermissions: [PermissionFlagsBits.ManageChannels] // Permesso di base
         },
     ];
 
