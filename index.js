@@ -1,8 +1,8 @@
-import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, Routes, API } from 'discord.js';
 import { createServer } from 'http';
 import { inspect } from 'util';
 
-// DEFINIZIONE DEL FLAG TEMPORANEO (Risolve i deprecation warning)
+// Il flag DEVE essere definito qui, non importato da discord.js
 const EPHEMERAL_FLAG = 1 << 6; 
 
 // --- CONFIGURAZIONE GLOBALE ---
@@ -10,7 +10,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 
 // ID CANALI E RUOLI (DEVI VERIFICARE TUTTI QUESTI ID)
 const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
-const STAFF_ROLE_ID = '1431931072098340934'; // ID Ruolo Staff
+const STAFF_ROLE_ID = '1431931072098340934'; 
 const CITIZEN_ROLE_ID = '1431247832249603250';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
 const PRIORITARIA_CATEGORY_ID = '1431931152110261530'; 
@@ -18,11 +18,11 @@ const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
-// ID DEI CANALI VOCALI DI ASSISTENZA (CRITICO: I TASTI COLLEGANO QUI)
+// ID DEI CANALI VOCALI DI ASSISTENZA
 const ASSISTENZA_VOCALE_ID_GENERALE = '1431931307427893390'; 
 const ASSISTENZA_VOCALE_ID_AZIONI = '1431931309214797915'; 
 
-// LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
+// LINK IMMAGINE
 const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/1404849559712039033/1432377198555304068/download.png?ex=6900d4b8&is=68ff8338&hm=4a6ac31ff8d490142256f11ca941629947183785bb51744dc3d5ff9f8ef9cd0a&';
 // ------------------------------
 
@@ -47,6 +47,7 @@ function keepAlive() {
 client.once('ready', async () => {
     console.log(`Bot pronto! Connesso come ${client.user.tag}`);
     keepAlive();
+    // Registrazione globale per risolvere problemi di cache
     await registerSlashCommandsGlobally(); 
 });
 
@@ -123,8 +124,6 @@ async function createTicket(interaction, type, isPriority = false) {
     }
 
     const guild = interaction.guild;
-    const categoryId = isPriority ? PRIORITARIA_CATEGORY_ID : null; 
-    const category = categoryId ? guild.channels.cache.get(categoryId) : null;
 
     const existingTicket = guild.channels.cache.find(c => 
         c.name.startsWith('ticket-') && 
@@ -134,6 +133,9 @@ async function createTicket(interaction, type, isPriority = false) {
     if (existingTicket) {
         return interaction.editReply({ content: `Hai già un ticket aperto in ${existingTicket}!`, flags: EPHEMERAL_FLAG });
     }
+    
+    // Logica Categoria
+    const categoryId = isPriority ? PRIORITARIA_CATEGORY_ID : null; 
 
     try {
         const ticketChannel = await guild.channels.create({
@@ -173,6 +175,9 @@ async function createTicket(interaction, type, isPriority = false) {
 }
 
 async function handleConvoca(interaction, convocaType) {
+    // Inizia la risposta differita per evitare il timeout
+    await interaction.deferReply({ flags: EPHEMERAL_FLAG });
+
     const staffRole = interaction.guild.roles.cache.get(STAFF_ROLE_ID);
     const convocaChannel = interaction.guild.channels.cache.get(CONVOCA_CHANNEL_ID);
     const motivo = interaction.options.getString('motivo');
@@ -180,26 +185,28 @@ async function handleConvoca(interaction, convocaType) {
     
     // Sceglie l'ID del canale vocale in base al tipo di convocazione
     const assistenzaVocaleID = convocaType === 'azioni' ? ASSISTENZA_VOCALE_ID_AZIONI : ASSISTENZA_VOCALE_ID_GENERALE;
+    const assistenzaTypeLabel = convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale/Informazioni';
 
     if (!staffRole || !convocaChannel) {
-        return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato. Verifica gli ID).', flags: EPHEMERAL_FLAG });
+        return interaction.editReply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato. Verifica gli ID).', flags: EPHEMERAL_FLAG });
     }
 
-    // 1. CREA INVITO DINAMICO (o un link statico se preferisci)
+    // 1. CREA INVITO DINAMICO (o un link statico come fallback)
     let inviteLink = null;
     try {
         const voiceChannel = interaction.guild.channels.cache.get(assistenzaVocaleID);
         if (voiceChannel && voiceChannel.type === ChannelType.GuildVoice) {
-            inviteLink = await voiceChannel.createInvite({
-                maxUses: 1,
-                maxAge: 600, // 10 minuti di validità
+            // Crea un invito con 10 minuti di validità e 1 utilizzo
+            const invite = await voiceChannel.createInvite({
+                maxUses: 1, 
+                maxAge: 600, // 10 minuti
                 reason: `Convocazione per ${targetUser.tag}`
             });
-            inviteLink = inviteLink.url;
+            inviteLink = invite.url;
         }
     } catch (error) {
-        console.warn("Impossibile creare l'invito dinamico. Usando link diretto (che potrebbe non funzionare se non è un invito permanente):", error);
-        // Fallback: usa il link al canale vocale. NOTA: DEVE ESSERE UN INVITO PERMANENTE PER FUNZIONARE SENZA PERMESSI
+        console.warn("Impossibile creare l'invito dinamico. Usando link diretto (verifica che il bot abbia i permessi 'Create Instant Invite'):", error);
+        // Fallback: link diretto al canale vocale.
         inviteLink = `https://discord.com/channels/${interaction.guild.id}/${assistenzaVocaleID}`;
     }
 
@@ -207,7 +214,7 @@ async function handleConvoca(interaction, convocaType) {
     const dmEmbed = new EmbedBuilder()
         .setColor('#FF0000') 
         .setTitle(`🚨 SEI STATO CONVOCATO IN ASSISTENZA 🚨`)
-        .setDescription(`Sei stato convocato dallo Staff di Nexus RP per il seguente motivo:\n\n**Tipo Convocazione:** ${convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale/Informazioni'}\n**Motivo:** ${motivo}\n\nClicca sul pulsante qui sotto per collegarti immediatamente al canale vocale di assistenza.`)
+        .setDescription(`Sei stato convocato dallo Staff di Nexus RP per il seguente motivo:\n\n**Tipo Convocazione:** ${assistenzaTypeLabel}\n**Motivo:** ${motivo}\n\nClicca sul pulsante qui sotto per collegarti immediatamente al canale vocale di assistenza.`)
         .setThumbnail(NEXUS_LOGO_URL);
 
     const connectButton = new ButtonBuilder()
@@ -224,20 +231,20 @@ async function handleConvoca(interaction, convocaType) {
         });
         
         // Risposta effimera all'utente che ha eseguito il comando (lo staff)
-        await interaction.reply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. Gli è stato inviato un messaggio privato con il link all'assistenza.`, flags: EPHEMERAL_FLAG });
+        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. Gli è stato inviato un messaggio privato con il link all'assistenza.`, flags: EPHEMERAL_FLAG });
 
     } catch (error) {
         console.error(`Impossibile inviare DM a ${targetUser.tag}:`, error);
-        await interaction.reply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. ATTENZIONE: Non è stato possibile inviare il messaggio privato. Lo staff è stato comunque notificato.`, flags: EPHEMERAL_FLAG });
+        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. ATTENZIONE: Non è stato possibile inviare il messaggio privato. Lo staff è stato comunque notificato.`, flags: EPHEMERAL_FLAG });
     }
     
     // 3. INVIA MESSAGGIO PUBBLICO NEL CANALE CONVOCA
     const convocaEmbed = new EmbedBuilder()
         .setColor('#FF0000') 
-        .setTitle(`🔔 Nuova Convocazione Pubblica - ${convocaType === 'azioni' ? 'AZIONI' : 'GENERALE'}`)
+        .setTitle(`🔔 Nuova Convocazione Pubblica - ${assistenzaTypeLabel.toUpperCase()}`)
         .setDescription(`L'utente ${targetUser} è stato convocato in Assistenza per il motivo: **${motivo}**!`)
         .addFields(
-            { name: 'Tipo', value: convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale', inline: true },
+            { name: 'Tipo', value: assistenzaTypeLabel, inline: true },
             { name: 'Utente Convocato', value: `${targetUser.tag}`, inline: true },
             { name: 'Collegamento Assistenza', value: `[Clicca qui per collegarti](${inviteLink})`, inline: false }
         )
@@ -272,6 +279,11 @@ client.on('guildMemberAdd', async member => {
 });
 
 client.on('interactionCreate', async interaction => {
+    // Gestisce il timeout se il bot si è appena riavviato
+    if (client.isReady() === false) {
+        return interaction.reply({ content: 'Il bot si sta ancora avviando. Riprova tra un minuto.', flags: EPHEMERAL_FLAG });
+    }
+    
     if (interaction.isCommand()) {
         const { commandName } = interaction;
 
