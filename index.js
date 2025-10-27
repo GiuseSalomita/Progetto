@@ -2,30 +2,26 @@ import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowB
 import { createServer } from 'http';
 import { inspect } from 'util';
 
-// DEFINIZIONE DEL FLAG TEMPORANEO (Risolve SyntaxError e Deprecation Warning)
+// DEFINIZIONE DEL FLAG TEMPORANEO (Risolve i deprecation warning)
 const EPHEMERAL_FLAG = 1 << 6; 
 
 // --- CONFIGURAZIONE GLOBALE ---
-// Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN
 const BOT_TOKEN = process.env.BOT_TOKEN; 
 
-// ID CANALI E RUOLI CORRETTI:
+// ID CANALI E RUOLI AGGIORNATI (STAFF_ROLE_ID MODIFICATO)
 const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
-const STAFF_ROLE_ID = '1431931072039340934';
+const STAFF_ROLE_ID = '1431931072098340934'; // <<--- NUOVO ID RUOLO STAFF
 const CITIZEN_ROLE_ID = '1431247832249603250';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
 const PRIORITARIA_CATEGORY_ID = '1431931152110261530'; 
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
-
-// ID DEL CANALE CONVOCA AGGIUNTO (Risolve l'errore /convoca)
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
 // LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
 const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/1404849559712039033/1432377198555304068/download.png?ex=6900d4b8&is=68ff8338&hm=4a6ac31ff8d490142256f11ca941629947183785bb51744dc3d5ff9f8ef9cd0a&';
 // ------------------------------
 
-// Creazione del client Discord con gli intent necessari
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -35,7 +31,6 @@ const client = new Client({
     ]
 });
 
-// Funzione di utilità per mantenere Render attivo
 function keepAlive() {
     const port = process.env.PORT || 3000;
     createServer((req, res) => {
@@ -44,7 +39,6 @@ function keepAlive() {
     }).listen(port, () => console.log(`HTTP server listening on port ${port}`));
 }
 
-// Logica quando il bot è pronto
 client.once('ready', async () => {
     console.log(`Bot pronto! Connesso come ${client.user.tag}`);
     keepAlive();
@@ -71,7 +65,7 @@ async function sendTicketPanel(channelId) {
         .setThumbnail(NEXUS_LOGO_URL) 
         .setFooter({ text: 'Nexus RP | Sistema Ticket' });
 
-    // Menu a tendina per l'assistenza standard
+    // Menu a tendina per l'assistenza standard con le CATEGORIE CORRETTE
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('select_ticket_standard')
         .setPlaceholder('Seleziona la Categoria di Assistenza Standard...')
@@ -108,9 +102,7 @@ async function sendTicketPanel(channelId) {
     }
 }
 
-// Logica per l'apertura del ticket
 async function createTicket(interaction, type, isPriority = false) {
-    // CORREZIONE DEPRECATION
     await interaction.deferReply({ flags: EPHEMERAL_FLAG }); 
 
     const member = interaction.member;
@@ -123,7 +115,6 @@ async function createTicket(interaction, type, isPriority = false) {
     const categoryId = isPriority ? PRIORITARIA_CATEGORY_ID : null; 
     const category = categoryId ? guild.channels.cache.get(categoryId) : null;
 
-    // Controllo se il membro ha già un ticket aperto
     const existingTicket = guild.channels.cache.find(c => 
         c.name.startsWith('ticket-') && 
         c.permissionOverwrites.cache.has(member.id) 
@@ -170,7 +161,6 @@ async function createTicket(interaction, type, isPriority = false) {
     }
 }
 
-// Logica per il messaggio di benvenuto
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
     const rulesChannel = member.guild.channels.cache.get(RULES_CHANNEL_ID);
@@ -193,13 +183,11 @@ client.on('guildMemberAdd', async member => {
     await welcomeChannel.send({ content: `${member}`, embeds: [welcomeEmbed] });
 });
 
-// Gestione dei comandi 
 client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
         const { commandName } = interaction;
 
         if (commandName === 'setup_ticket_panel') {
-            // Verifica permessi (solo staff o admin)
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && 
                 !interaction.member.roles.cache.has(STAFF_ROLE_ID)) {
                 return interaction.reply({ content: 'Non hai il permesso di eseguire questo comando.', flags: EPHEMERAL_FLAG });
@@ -210,19 +198,18 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', flags: EPHEMERAL_FLAG });
         }
         
-        if (commandName === 'convoca') { // GESTIONE COMPLETA /CONVOCA
+        if (commandName === 'convoca') { 
             const staffRole = interaction.guild.roles.cache.get(STAFF_ROLE_ID);
             const convocaChannel = interaction.guild.channels.cache.get(CONVOCA_CHANNEL_ID);
             const motivo = interaction.options.getString('motivo');
 
+            // Questa condizione verrà superata con l'ID corretto
             if (!staffRole || !convocaChannel) {
                 return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato).', flags: EPHEMERAL_FLAG });
             }
             
-            // Risposta immediata all'utente
             await interaction.reply({ content: `Hai richiesto una convocazione per il motivo: **${motivo}**. Lo staff verrà notificato in ${convocaChannel}.`, flags: EPHEMERAL_FLAG });
 
-            // Messaggio di notifica nello #convocazioni-player
             const convocaEmbed = new EmbedBuilder()
                 .setColor('#FF0000') 
                 .setTitle(`🔔 Nuova Convocazione Richiesta`)
@@ -246,7 +233,6 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: EPHEMERAL_FLAG });
             }
 
-            // Aggiungi logica per la chiusura
             await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: EPHEMERAL_FLAG }); 
             setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
         }
@@ -286,7 +272,7 @@ async function registerSlashCommands() {
             name: 'close',
             description: 'Chiude il canale ticket corrente.',
         },
-        { // COMANDO /CONVOCA CON OPZIONE
+        { 
             name: 'convoca',
             description: 'Convoca un utente per un colloquio con lo staff.',
             options: [
@@ -318,7 +304,6 @@ async function registerSlashCommands() {
     }
 }
 
-// Login del bot
 client.login(BOT_TOKEN).catch(err => {
     console.error("ERRORE DI LOGIN:", err);
 });
