@@ -3,11 +3,12 @@ import { createServer } from 'http';
 import { inspect } from 'util';
 
 // --- CONFIGURAZIONE GLOBALE ---
-const BOT_TOKEN = process.env.BOT_TOKEN; // DEVE ESSERE ESATTAMENTE COSÌ
-const TICKET_PANEL_CHANNEL_ID = '1431931267870710027'; // Canale dove appare il pannello
+// Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN
+const BOT_TOKEN = process.env.BOT_TOKEN; 
+const TICKET_PANEL_CHANNEL_ID = '1431931267870710027'; 
 const STAFF_ROLE_ID = '1431931072039340934';
 const CITIZEN_ROLE_ID = '1431247832249603250';
-const PRIORITARIA_ROLE_ID = '1431931076242182276'; // Ruolo che può usare l'assistenza prioritaria
+const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
 const PRIORITARIA_CATEGORY_ID = '1431931152110261530'; 
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
@@ -18,9 +19,10 @@ const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/14048495597120390
 
 // Creazione del client Discord con gli intent necessari
 const client = new Client({
+    // Gli Intents sono attivati su Discord Developer Portal
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMembers, // Richiesto per guildMemberAdd (benvenuto)
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
     ]
@@ -273,4 +275,3 @@ client.once('ready', () => {
 client.login(BOT_TOKEN).catch(err => {
     console.error("ERRORE DI LOGIN:", err);
 });
-
