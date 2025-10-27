@@ -5,7 +5,9 @@ import { inspect } from 'util';
 // --- CONFIGURAZIONE GLOBALE ---
 // Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN
 const BOT_TOKEN = process.env.BOT_TOKEN; 
-const TICKET_PANEL_CHANNEL_ID = '1431931267870710027'; 
+
+// ID CANALI E RUOLI CORRETTI:
+const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; // CANALE TICKET CORRETTO
 const STAFF_ROLE_ID = '1431931072039340934';
 const CITIZEN_ROLE_ID = '1431247832249603250';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
@@ -13,7 +15,7 @@ const PRIORITARIA_CATEGORY_ID = '1431931152110261530';
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 
-// NUOVA COSTANTE CON IL LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
+// LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
 const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/1404849559712039033/1432377198555304068/download.png?ex=6900d4b8&is=68ff8338&hm=4a6ac31ff8d490142256f11ca941629947183785bb51744dc3d5ff9f8ef9cd0a&';
 // ------------------------------
 
@@ -43,6 +45,9 @@ client.once('ready', async () => {
 
     // Avvia l'HTTP server per mantenere il bot vivo su Render
     keepAlive();
+    
+    // Tentativo di registrazione comandi slash all'avvio
+    await registerSlashCommands(); 
 });
 
 // Funzione per inviare o modificare il pannello dei ticket
@@ -86,15 +91,19 @@ async function sendTicketPanel(channelId) {
     const actionRowSelect = new ActionRowBuilder().addComponents(selectMenu);
     const actionRowButton = new ActionRowBuilder().addComponents(priorityButton);
 
-    const messages = await channel.messages.fetch({ limit: 10 });
-    const existingMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === '💎 Benvenuto nel Centro Assistenza Nexus 💎');
+    try {
+        const messages = await channel.messages.fetch({ limit: 10 });
+        const existingMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title === '💎 Benvenuto nel Centro Assistenza Nexus 💎');
 
-    if (existingMessage) {
-        await existingMessage.edit({ embeds: [embed], components: [actionRowButton, actionRowSelect] });
-        console.log('Pannello ticket esistente modificato con successo.');
-    } else {
-        await channel.send({ embeds: [embed], components: [actionRowButton, actionRowSelect] });
-        console.log('Nuovo pannello ticket inviato con successo.');
+        if (existingMessage) {
+            await existingMessage.edit({ embeds: [embed], components: [actionRowButton, actionRowSelect] });
+            console.log('Pannello ticket esistente modificato con successo.');
+        } else {
+            await channel.send({ embeds: [embed], components: [actionRowButton, actionRowSelect] });
+            console.log('Nuovo pannello ticket inviato con successo.');
+        }
+    } catch (e) {
+        console.error("Errore durante l'invio/modifica del pannello ticket:", e);
     }
 }
 
@@ -114,8 +123,8 @@ async function createTicket(interaction, type, isPriority = false) {
 
     // Controllo se il membro ha già un ticket aperto
     const existingTicket = guild.channels.cache.find(c => 
-        c.name === `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '')}` && 
-        (c.parent && c.parent.id === categoryId || !categoryId) 
+        c.name.startsWith('ticket-') && 
+        c.permissionOverwrites.cache.has(member.id) 
     );
 
     if (existingTicket) {
@@ -206,7 +215,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             // Aggiungi logica per la chiusura (es. aggiungi un ritardo per salvare i log)
-            await interaction.reply('Chiusura del ticket in corso...');
+            await interaction.reply({ content: 'Chiusura del ticket in corso...', ephemeral: true });
             setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
         }
     }
@@ -228,7 +237,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', ephemeral: true });
         }
 
-        await interaction.reply('Chiusura del ticket in corso...');
+        await interaction.reply({ content: 'Chiusura del ticket in corso...', ephemeral: true });
         setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
     }
 });
@@ -253,6 +262,7 @@ async function registerSlashCommands() {
 
         if (!guild_id) {
             console.warn("Attenzione: Nessuna gilda trovata. I comandi slash potrebbero non registrarsi immediatamente.");
+            return;
         }
         
         // Registra i comandi globalmente (o localmente se necessario)
@@ -264,12 +274,6 @@ async function registerSlashCommands() {
         console.error('Errore durante la registrazione dei comandi slash:', inspect(error, true, 5));
     }
 }
-
-// Quando il bot è pronto, registra i comandi (dopo un breve ritardo)
-client.once('ready', () => {
-    // Un piccolo ritardo per assicurare che il client sia completamente pronto
-    setTimeout(registerSlashCommands, 5000); 
-});
 
 // Login del bot
 client.login(BOT_TOKEN).catch(err => {
