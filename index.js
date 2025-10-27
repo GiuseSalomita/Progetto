@@ -1,6 +1,9 @@
-import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, InteractionFlags } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createServer } from 'http';
 import { inspect } from 'util';
+
+// Definiamo il flag numerico che sostituisce 'ephemeral: true' (1 << 6 è il valore di InteractionFlags.Ephemeral)
+const EPHEMERAL_FLAG = 1 << 6;
 
 // --- CONFIGURAZIONE GLOBALE ---
 // Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN
@@ -15,7 +18,7 @@ const PRIORITARIA_CATEGORY_ID = '1431931152110261530';
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 
-// NUOVO ID AGGIUNTO PER IL COMANDO /CONVOCA
+// ID DEL CANALE CONVOCA AGGIUNTO
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
 // LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
@@ -107,13 +110,13 @@ async function sendTicketPanel(channelId) {
 
 // Logica per l'apertura del ticket
 async function createTicket(interaction, type, isPriority = false) {
-    // CORREZIONE DEPRECATION
-    await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] }); 
+    // CORREZIONE DEPRECATION: usiamo EPHEMERAL_FLAG
+    await interaction.deferReply({ flags: EPHEMERAL_FLAG }); 
 
     const member = interaction.member;
 
     if (isPriority && !member.roles.cache.has(PRIORITARIA_ROLE_ID)) {
-        return interaction.editReply({ content: 'Non hai il ruolo necessario per aprire un ticket di assistenza prioritaria.', flags: [InteractionFlags.Ephemeral] });
+        return interaction.editReply({ content: 'Non hai il ruolo necessario per aprire un ticket di assistenza prioritaria.', flags: EPHEMERAL_FLAG });
     }
 
     const guild = interaction.guild;
@@ -127,7 +130,7 @@ async function createTicket(interaction, type, isPriority = false) {
     );
 
     if (existingTicket) {
-        return interaction.editReply({ content: `Hai già un ticket aperto in ${existingTicket}!`, flags: [InteractionFlags.Ephemeral] });
+        return interaction.editReply({ content: `Hai già un ticket aperto in ${existingTicket}!`, flags: EPHEMERAL_FLAG });
     }
 
     try {
@@ -160,10 +163,10 @@ async function createTicket(interaction, type, isPriority = false) {
         await ticketChannel.send({ embeds: [welcomeEmbed], components: [actionRow] });
         await ticketChannel.send({ content: `<@&${STAFF_ROLE_ID}> ${isPriority ? '<@&'+PRIORITARIA_ROLE_ID+'>' : ''}` });
 
-        await interaction.editReply({ content: `Il tuo ticket è stato aperto in ${ticketChannel}!`, flags: [InteractionFlags.Ephemeral] });
+        await interaction.editReply({ content: `Il tuo ticket è stato aperto in ${ticketChannel}!`, flags: EPHEMERAL_FLAG });
     } catch (error) {
         console.error('Errore durante la creazione del ticket:', error);
-        await interaction.editReply({ content: 'Si è verificato un errore durante l\'apertura del ticket.', flags: [InteractionFlags.Ephemeral] });
+        await interaction.editReply({ content: 'Si è verificato un errore durante l\'apertura del ticket.', flags: EPHEMERAL_FLAG });
     }
 }
 
@@ -190,7 +193,7 @@ client.on('guildMemberAdd', async member => {
     await welcomeChannel.send({ content: `${member}`, embeds: [welcomeEmbed] });
 });
 
-// Gestione dei comandi (principalmente /setup_ticket_panel)
+// Gestione dei comandi 
 client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
         const { commandName } = interaction;
@@ -199,12 +202,12 @@ client.on('interactionCreate', async interaction => {
             // Verifica permessi (solo staff o admin)
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && 
                 !interaction.member.roles.cache.has(STAFF_ROLE_ID)) {
-                return interaction.reply({ content: 'Non hai il permesso di eseguire questo comando.', flags: [InteractionFlags.Ephemeral] });
+                return interaction.reply({ content: 'Non hai il permesso di eseguire questo comando.', flags: EPHEMERAL_FLAG });
             }
 
-            await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+            await interaction.deferReply({ flags: EPHEMERAL_FLAG });
             await sendTicketPanel(TICKET_PANEL_CHANNEL_ID);
-            return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', flags: [InteractionFlags.Ephemeral] });
+            return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', flags: EPHEMERAL_FLAG });
         }
         
         if (commandName === 'convoca') { // GESTIONE COMPLETA /CONVOCA
@@ -213,11 +216,11 @@ client.on('interactionCreate', async interaction => {
             const motivo = interaction.options.getString('motivo');
 
             if (!staffRole || !convocaChannel) {
-                return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato).', flags: [InteractionFlags.Ephemeral] });
+                return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato).', flags: EPHEMERAL_FLAG });
             }
             
             // Risposta immediata all'utente
-            await interaction.reply({ content: `Hai richiesto una convocazione per il motivo: **${motivo}**. Lo staff verrà notificato in ${convocaChannel}.`, flags: [InteractionFlags.Ephemeral] });
+            await interaction.reply({ content: `Hai richiesto una convocazione per il motivo: **${motivo}**. Lo staff verrà notificato in ${convocaChannel}.`, flags: EPHEMERAL_FLAG });
 
             // Messaggio di notifica nello #convocazioni-player
             const convocaEmbed = new EmbedBuilder()
@@ -240,11 +243,11 @@ client.on('interactionCreate', async interaction => {
         
         if (commandName === 'close') {
             if (!interaction.channel.name.startsWith('ticket-')) {
-                return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: [InteractionFlags.Ephemeral] });
+                return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: EPHEMERAL_FLAG });
             }
 
             // Aggiungi logica per la chiusura
-            await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] }); 
+            await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: EPHEMERAL_FLAG }); 
             setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
         }
     }
@@ -263,10 +266,10 @@ client.on('interactionCreate', async interaction => {
     // Gestione del bottone di chiusura ticket
     if (interaction.isButton() && interaction.customId === 'button_ticket_close') {
         if (!interaction.channel.name.startsWith('ticket-')) {
-            return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: [InteractionFlags.Ephemeral] });
+            return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: EPHEMERAL_FLAG });
         }
 
-        await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] });
+        await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: EPHEMERAL_FLAG });
         setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
     }
 });
@@ -319,4 +322,3 @@ async function registerSlashCommands() {
 client.login(BOT_TOKEN).catch(err => {
     console.error("ERRORE DI LOGIN:", err);
 });
-
