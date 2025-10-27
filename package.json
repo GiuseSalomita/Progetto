@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js"
   },
-  "type": "module",  <-- AGGIUNGI QUESTA RIGA
+  "type": "module", 
   "dependencies": {
     "discord.js": "^14.17.1"
   }
