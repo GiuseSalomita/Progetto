@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, InteractionFlags } from 'discord.js';
 import { createServer } from 'http';
 import { inspect } from 'util';
 
@@ -24,7 +24,7 @@ const client = new Client({
     // Gli Intents sono attivati su Discord Developer Portal
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers, // Richiesto per guildMemberAdd (benvenuto)
+        GatewayIntentBits.GuildMembers, 
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
     ]
@@ -41,7 +41,7 @@ function keepAlive() {
 
 // Logica quando il bot è pronto
 client.once('ready', async () => {
-    console.log(`Bot pronto! Connesso come ${client.user.tag}`);
+    console.log(`Bot pronto! Connesso come ${client.user.tag}`); //
 
     // Avvia l'HTTP server per mantenere il bot vivo su Render
     keepAlive();
@@ -54,7 +54,7 @@ client.once('ready', async () => {
 async function sendTicketPanel(channelId) {
     const channel = client.channels.cache.get(channelId);
     if (!channel) {
-        console.error(`Canale per il pannello ticket non trovato: ${channelId}`);
+        console.error(`Canale per il pannello ticket non trovato: ${channelId}`); //
         return;
     }
 
@@ -109,12 +109,12 @@ async function sendTicketPanel(channelId) {
 
 // Logica per l'apertura del ticket
 async function createTicket(interaction, type, isPriority = false) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] }); // Correzione deprecazione
 
     const member = interaction.member;
 
     if (isPriority && !member.roles.cache.has(PRIORITARIA_ROLE_ID)) {
-        return interaction.editReply({ content: 'Non hai il ruolo necessario per aprire un ticket di assistenza prioritaria.', ephemeral: true });
+        return interaction.editReply({ content: 'Non hai il ruolo necessario per aprire un ticket di assistenza prioritaria.', flags: [InteractionFlags.Ephemeral] });
     }
 
     const guild = interaction.guild;
@@ -128,7 +128,7 @@ async function createTicket(interaction, type, isPriority = false) {
     );
 
     if (existingTicket) {
-        return interaction.editReply({ content: `Hai già un ticket aperto in ${existingTicket}!`, ephemeral: true });
+        return interaction.editReply({ content: `Hai già un ticket aperto in ${existingTicket}!`, flags: [InteractionFlags.Ephemeral] });
     }
 
     try {
@@ -161,11 +161,11 @@ async function createTicket(interaction, type, isPriority = false) {
         await ticketChannel.send({ embeds: [welcomeEmbed], components: [actionRow] });
         await ticketChannel.send({ content: `<@&${STAFF_ROLE_ID}> ${isPriority ? '<@&'+PRIORITARIA_ROLE_ID+'>' : ''}` });
 
-        await interaction.editReply({ content: `Il tuo ticket è stato aperto in ${ticketChannel}!`, ephemeral: true });
+        await interaction.editReply({ content: `Il tuo ticket è stato aperto in ${ticketChannel}!`, flags: [InteractionFlags.Ephemeral] });
 
     } catch (error) {
         console.error('Errore durante la creazione del ticket:', error);
-        await interaction.editReply({ content: 'Si è verificato un errore durante l\'apertura del ticket.', ephemeral: true });
+        await interaction.editReply({ content: 'Si è verificato un errore durante l\'apertura del ticket.', flags: [InteractionFlags.Ephemeral] });
     }
 }
 
@@ -192,7 +192,7 @@ client.on('guildMemberAdd', async member => {
     await welcomeChannel.send({ content: `${member}`, embeds: [welcomeEmbed] });
 });
 
-// Gestione dei comandi (principalmente /setup_ticket_panel)
+// Gestione dei comandi 
 client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
         const { commandName } = interaction;
@@ -201,21 +201,27 @@ client.on('interactionCreate', async interaction => {
             // Verifica permessi (solo staff o admin)
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && 
                 !interaction.member.roles.cache.has(STAFF_ROLE_ID)) {
-                return interaction.reply({ content: 'Non hai il permesso di eseguire questo comando.', ephemeral: true });
+                return interaction.reply({ content: 'Non hai il permesso di eseguire questo comando.', flags: [InteractionFlags.Ephemeral] });
             }
 
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
             await sendTicketPanel(TICKET_PANEL_CHANNEL_ID);
-            return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', ephemeral: true });
+            return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', flags: [InteractionFlags.Ephemeral] });
+        }
+        
+        if (commandName === 'convoca') { // GESTIONE /CONVOCA
+            // Logica base per evitare l'errore "non ha risposto"
+            // Implementa qui la logica di convocazione, se necessario.
+            return interaction.reply({ content: 'Il comando convoca è stato ricevuto e verrà elaborato. (Logica da implementare)', flags: [InteractionFlags.Ephemeral] });
         }
         
         if (commandName === 'close') {
             if (!interaction.channel.name.startsWith('ticket-')) {
-                return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', ephemeral: true });
+                return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: [InteractionFlags.Ephemeral] });
             }
 
-            // Aggiungi logica per la chiusura (es. aggiungi un ritardo per salvare i log)
-            await interaction.reply({ content: 'Chiusura del ticket in corso...', ephemeral: true });
+            // Aggiungi logica per la chiusura 
+            await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] }); // Correzione deprecazione
             setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
         }
     }
@@ -234,16 +240,16 @@ client.on('interactionCreate', async interaction => {
     // Gestione del bottone di chiusura ticket
     if (interaction.isButton() && interaction.customId === 'button_ticket_close') {
         if (!interaction.channel.name.startsWith('ticket-')) {
-            return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', ephemeral: true });
+            return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: [InteractionFlags.Ephemeral] });
         }
 
-        await interaction.reply({ content: 'Chiusura del ticket in corso...', ephemeral: true });
+        await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] }); // Correzione deprecazione
         setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
     }
 });
 
 
-// Funzione per registrare i comandi slash (Esegui una sola volta dopo l'avvio del bot)
+// Funzione per registrare i comandi slash 
 async function registerSlashCommands() {
     const commands = [
         {
@@ -254,22 +260,26 @@ async function registerSlashCommands() {
             name: 'close',
             description: 'Chiude il canale ticket corrente.',
         },
+        {
+            name: 'convoca',
+            description: 'Comando per convocare un utente o lo staff.', // Comando aggiunto
+        },
     ];
 
     try {
         const client_id = client.user.id;
-        const guild_id = client.guilds.cache.first()?.id; // Prende la prima gilda connessa
+        const guild_id = client.guilds.cache.first()?.id; 
 
         if (!guild_id) {
             console.warn("Attenzione: Nessuna gilda trovata. I comandi slash potrebbero non registrarsi immediatamente.");
             return;
         }
         
-        // Registra i comandi globalmente (o localmente se necessario)
+        // Registra i comandi 
         const rest = client.application.commands;
         await rest.set(commands, guild_id);
         
-        console.log('Comandi slash registrati con successo.');
+        console.log('Comandi slash registrati con successo.'); //
     } catch (error) {
         console.error('Errore durante la registrazione dei comandi slash:', inspect(error, true, 5));
     }
