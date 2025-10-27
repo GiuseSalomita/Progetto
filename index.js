@@ -1,24 +1,23 @@
-import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, Routes, API } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, Routes } from 'discord.js';
 import { createServer } from 'http';
 import { inspect } from 'util';
 
-// Il flag DEVE essere definito qui, non importato da discord.js
+// Il flag DEVE essere definito qui per l'uso effimero
 const EPHEMERAL_FLAG = 1 << 6; 
 
 // --- CONFIGURAZIONE GLOBALE ---
 const BOT_TOKEN = process.env.BOT_TOKEN; 
 
-// ID CANALI E RUOLI (DEVI VERIFICARE TUTTI QUESTI ID)
+// ID CANALI E RUOLI 
 const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
 const STAFF_ROLE_ID = '1431931072098340934'; 
-const CITIZEN_ROLE_ID = '1431247832249603250';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
 const PRIORITARIA_CATEGORY_ID = '1431931152110261530'; 
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
-// ID DEI CANALI VOCALI DI ASSISTENZA
+// ID DEI CANALI VOCALI DI ASSISTENZA (usati solo come riferimento testuale nella convocazione)
 const ASSISTENZA_VOCALE_ID_GENERALE = '1431931307427893390'; 
 const ASSISTENZA_VOCALE_ID_AZIONI = '1431931309214797915'; 
 
@@ -183,70 +182,40 @@ async function handleConvoca(interaction, convocaType) {
     const motivo = interaction.options.getString('motivo');
     const targetUser = interaction.options.getUser('utente');
     
-    // Sceglie l'ID del canale vocale in base al tipo di convocazione
-    const assistenzaVocaleID = convocaType === 'azioni' ? ASSISTENZA_VOCALE_ID_AZIONI : ASSISTENZA_VOCALE_ID_GENERALE;
     const assistenzaTypeLabel = convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale/Informazioni';
 
     if (!staffRole || !convocaChannel) {
-        return interaction.editReply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato. Verifica gli ID).', flags: EPHEMERAL_FLAG });
+        // Logga l'errore in console e invia una risposta effimera
+        console.error(`Errore di configurazione per Convoca: Ruolo Staff: ${!!staffRole}, Canale Convoca: ${!!convocaChannel}. Controlla gli ID.`);
+        return interaction.editReply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato). Il bot non può procedere. Controlla gli ID.', flags: EPHEMERAL_FLAG });
     }
 
-    // 1. CREA INVITO DINAMICO (o un link statico come fallback)
-    let inviteLink = null;
-    try {
-        const voiceChannel = interaction.guild.channels.cache.get(assistenzaVocaleID);
-        if (voiceChannel && voiceChannel.type === ChannelType.GuildVoice) {
-            // Crea un invito con 10 minuti di validità e 1 utilizzo
-            const invite = await voiceChannel.createInvite({
-                maxUses: 1, 
-                maxAge: 600, // 10 minuti
-                reason: `Convocazione per ${targetUser.tag}`
-            });
-            inviteLink = invite.url;
-        }
-    } catch (error) {
-        console.warn("Impossibile creare l'invito dinamico. Usando link diretto (verifica che il bot abbia i permessi 'Create Instant Invite'):", error);
-        // Fallback: link diretto al canale vocale.
-        inviteLink = `https://discord.com/channels/${interaction.guild.id}/${assistenzaVocaleID}`;
-    }
-
-    // 2. INVIA MESSAGGIO PRIVATO (DM) CON BOTTONE ALL'UTENTE CONVOCATO
+    // 1. INVIA MESSAGGIO PRIVATO (DM) SOLO TESTO
     const dmEmbed = new EmbedBuilder()
         .setColor('#FF0000') 
         .setTitle(`🚨 SEI STATO CONVOCATO IN ASSISTENZA 🚨`)
-        .setDescription(`Sei stato convocato dallo Staff di Nexus RP per il seguente motivo:\n\n**Tipo Convocazione:** ${assistenzaTypeLabel}\n**Motivo:** ${motivo}\n\nClicca sul pulsante qui sotto per collegarti immediatamente al canale vocale di assistenza.`)
+        .setDescription(`Sei stato convocato dallo Staff di Nexus RP per il seguente motivo:\n\n**Tipo Convocazione:** ${assistenzaTypeLabel}\n**Motivo:** ${motivo}\n\nPer favore, connettiti al canale vocale di Assistenza.`)
         .setThumbnail(NEXUS_LOGO_URL);
 
-    const connectButton = new ButtonBuilder()
-        .setLabel('Connettiti al Canale Assistenza')
-        .setStyle(ButtonStyle.Link)
-        .setURL(inviteLink);
-
-    const dmActionRow = new ActionRowBuilder().addComponents(connectButton);
-
     try {
-        await targetUser.send({ 
-            embeds: [dmEmbed], 
-            components: [dmActionRow] 
-        });
+        await targetUser.send({ embeds: [dmEmbed] });
         
         // Risposta effimera all'utente che ha eseguito il comando (lo staff)
-        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. Gli è stato inviato un messaggio privato con il link all'assistenza.`, flags: EPHEMERAL_FLAG });
+        await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. Gli è stato inviato un messaggio privato che lo informa della convocazione.`, flags: EPHEMERAL_FLAG });
 
     } catch (error) {
         console.error(`Impossibile inviare DM a ${targetUser.tag}:`, error);
         await interaction.editReply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. ATTENZIONE: Non è stato possibile inviare il messaggio privato. Lo staff è stato comunque notificato.`, flags: EPHEMERAL_FLAG });
     }
     
-    // 3. INVIA MESSAGGIO PUBBLICO NEL CANALE CONVOCA
+    // 2. INVIA MESSAGGIO PUBBLICO NEL CANALE CONVOCA
     const convocaEmbed = new EmbedBuilder()
         .setColor('#FF0000') 
         .setTitle(`🔔 Nuova Convocazione Pubblica - ${assistenzaTypeLabel.toUpperCase()}`)
         .setDescription(`L'utente ${targetUser} è stato convocato in Assistenza per il motivo: **${motivo}**!`)
         .addFields(
             { name: 'Tipo', value: assistenzaTypeLabel, inline: true },
-            { name: 'Utente Convocato', value: `${targetUser.tag}`, inline: true },
-            { name: 'Collegamento Assistenza', value: `[Clicca qui per collegarti](${inviteLink})`, inline: false }
+            { name: 'Utente Convocato', value: `${targetUser.tag}`, inline: true }
         )
         .setTimestamp();
         
@@ -269,7 +238,7 @@ client.on('guildMemberAdd', async member => {
             `Ciao ${member}!
             Siamo entusiasti di averti a bordo! Nexus RP è il luogo dove la tua avventura prende vita.
 
-            Per cominciare, sei invitato a leggere attentamente il nostro **regolamento server** presente sul canale ${rulesChannel}.
+            Per cominciare, sei invitato a leggere attentamente il nostro **regolamento server** presente sul canale <#${RULES_CHANNEL_ID}>.
 
             Una volta letto, potrai goderti appieno la tua esperienza. **BUON RP!**`
         )
