@@ -7,7 +7,7 @@ import { inspect } from 'util';
 const BOT_TOKEN = process.env.BOT_TOKEN; 
 
 // ID CANALI E RUOLI CORRETTI:
-const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; // CANALE TICKET CORRETTO
+const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
 const STAFF_ROLE_ID = '1431931072039340934';
 const CITIZEN_ROLE_ID = '1431247832249603250';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
@@ -15,13 +15,15 @@ const PRIORITARIA_CATEGORY_ID = '1431931152110261530';
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 
+// NUOVO ID AGGIUNTO PER IL COMANDO /CONVOCA
+const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
+
 // LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
 const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/1404849559712039033/1432377198555304068/download.png?ex=6900d4b8&is=68ff8338&hm=4a6ac31ff8d490142256f11ca941629947183785bb51744dc3d5ff9f8ef9cd0a&';
 // ------------------------------
 
 // Creazione del client Discord con gli intent necessari
 const client = new Client({
-    // Gli Intents sono attivati su Discord Developer Portal
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers, 
@@ -30,7 +32,7 @@ const client = new Client({
     ]
 });
 
-// Funzione di utilità per mantenere Render attivo (Web Service)
+// Funzione di utilità per mantenere Render attivo
 function keepAlive() {
     const port = process.env.PORT || 3000;
     createServer((req, res) => {
@@ -41,12 +43,8 @@ function keepAlive() {
 
 // Logica quando il bot è pronto
 client.once('ready', async () => {
-    console.log(`Bot pronto! Connesso come ${client.user.tag}`); //
-
-    // Avvia l'HTTP server per mantenere il bot vivo su Render
+    console.log(`Bot pronto! Connesso come ${client.user.tag}`);
     keepAlive();
-    
-    // Tentativo di registrazione comandi slash all'avvio
     await registerSlashCommands(); 
 });
 
@@ -54,7 +52,7 @@ client.once('ready', async () => {
 async function sendTicketPanel(channelId) {
     const channel = client.channels.cache.get(channelId);
     if (!channel) {
-        console.error(`Canale per il pannello ticket non trovato: ${channelId}`); //
+        console.error(`Canale per il pannello ticket non trovato: ${channelId}`);
         return;
     }
 
@@ -109,7 +107,8 @@ async function sendTicketPanel(channelId) {
 
 // Logica per l'apertura del ticket
 async function createTicket(interaction, type, isPriority = false) {
-    await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] }); // Correzione deprecazione
+    // CORREZIONE DEPRECATION
+    await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] }); 
 
     const member = interaction.member;
 
@@ -162,7 +161,6 @@ async function createTicket(interaction, type, isPriority = false) {
         await ticketChannel.send({ content: `<@&${STAFF_ROLE_ID}> ${isPriority ? '<@&'+PRIORITARIA_ROLE_ID+'>' : ''}` });
 
         await interaction.editReply({ content: `Il tuo ticket è stato aperto in ${ticketChannel}!`, flags: [InteractionFlags.Ephemeral] });
-
     } catch (error) {
         console.error('Errore durante la creazione del ticket:', error);
         await interaction.editReply({ content: 'Si è verificato un errore durante l\'apertura del ticket.', flags: [InteractionFlags.Ephemeral] });
@@ -192,7 +190,7 @@ client.on('guildMemberAdd', async member => {
     await welcomeChannel.send({ content: `${member}`, embeds: [welcomeEmbed] });
 });
 
-// Gestione dei comandi 
+// Gestione dei comandi (principalmente /setup_ticket_panel)
 client.on('interactionCreate', async interaction => {
     if (interaction.isCommand()) {
         const { commandName } = interaction;
@@ -209,10 +207,35 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: 'Pannello ticket inviato/aggiornato con successo!', flags: [InteractionFlags.Ephemeral] });
         }
         
-        if (commandName === 'convoca') { // GESTIONE /CONVOCA
-            // Logica base per evitare l'errore "non ha risposto"
-            // Implementa qui la logica di convocazione, se necessario.
-            return interaction.reply({ content: 'Il comando convoca è stato ricevuto e verrà elaborato. (Logica da implementare)', flags: [InteractionFlags.Ephemeral] });
+        if (commandName === 'convoca') { // GESTIONE COMPLETA /CONVOCA
+            const staffRole = interaction.guild.roles.cache.get(STAFF_ROLE_ID);
+            const convocaChannel = interaction.guild.channels.cache.get(CONVOCA_CHANNEL_ID);
+            const motivo = interaction.options.getString('motivo');
+
+            if (!staffRole || !convocaChannel) {
+                return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato).', flags: [InteractionFlags.Ephemeral] });
+            }
+            
+            // Risposta immediata all'utente
+            await interaction.reply({ content: `Hai richiesto una convocazione per il motivo: **${motivo}**. Lo staff verrà notificato in ${convocaChannel}.`, flags: [InteractionFlags.Ephemeral] });
+
+            // Messaggio di notifica nello #convocazioni-player
+            const convocaEmbed = new EmbedBuilder()
+                .setColor('#FF0000') 
+                .setTitle(`🔔 Nuova Convocazione Richiesta`)
+                .setDescription(`L'utente ${interaction.member} ha richiesto una convocazione.`)
+                .addFields(
+                    { name: 'Richiesta da', value: `${interaction.member.user.tag} (${interaction.member.id})`, inline: true },
+                    { name: 'Motivo', value: motivo, inline: false }
+                )
+                .setTimestamp();
+                
+            await convocaChannel.send({ 
+                content: `<@&${staffRole.id}>, c'è una nuova convocazione.`, 
+                embeds: [convocaEmbed] 
+            });
+            
+            return;
         }
         
         if (commandName === 'close') {
@@ -220,8 +243,8 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: [InteractionFlags.Ephemeral] });
             }
 
-            // Aggiungi logica per la chiusura 
-            await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] }); // Correzione deprecazione
+            // Aggiungi logica per la chiusura
+            await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] }); 
             setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
         }
     }
@@ -243,7 +266,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: 'Questo comando può essere usato solo in un canale ticket.', flags: [InteractionFlags.Ephemeral] });
         }
 
-        await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] }); // Correzione deprecazione
+        await interaction.reply({ content: 'Chiusura del ticket in corso...', flags: [InteractionFlags.Ephemeral] });
         setTimeout(() => interaction.channel.delete().catch(console.error), 5000); 
     }
 });
@@ -260,9 +283,17 @@ async function registerSlashCommands() {
             name: 'close',
             description: 'Chiude il canale ticket corrente.',
         },
-        {
+        { // COMANDO /CONVOCA AGGIUNTO CON OPZIONE
             name: 'convoca',
-            description: 'Comando per convocare un utente o lo staff.', // Comando aggiunto
+            description: 'Convoca un utente per un colloquio con lo staff.',
+            options: [
+                {
+                    name: 'motivo',
+                    description: 'Il motivo della convocazione.',
+                    type: 3, // STRING
+                    required: true,
+                },
+            ],
         },
     ];
 
@@ -275,11 +306,10 @@ async function registerSlashCommands() {
             return;
         }
         
-        // Registra i comandi 
         const rest = client.application.commands;
         await rest.set(commands, guild_id);
         
-        console.log('Comandi slash registrati con successo.'); //
+        console.log('Comandi slash registrati con successo.');
     } catch (error) {
         console.error('Errore durante la registrazione dei comandi slash:', inspect(error, true, 5));
     }
