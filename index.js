@@ -8,15 +8,19 @@ const EPHEMERAL_FLAG = 1 << 6;
 // --- CONFIGURAZIONE GLOBALE ---
 const BOT_TOKEN = process.env.BOT_TOKEN; 
 
-// ID CANALI E RUOLI AGGIORNATI (STAFF_ROLE_ID MODIFICATO)
+// ID CANALI E RUOLI (DEVI VERIFICARE TUTTI QUESTI ID)
 const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
-const STAFF_ROLE_ID = '1431931072098340934'; // <<--- NUOVO ID RUOLO STAFF
+const STAFF_ROLE_ID = '1431931072098340934'; // ID Ruolo Staff
 const CITIZEN_ROLE_ID = '1431247832249603250';
 const PRIORITARIA_ROLE_ID = '1431931076242182276'; 
 const PRIORITARIA_CATEGORY_ID = '1431931152110261530'; 
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
+
+// ID DEI CANALI VOCALI DI ASSISTENZA (CRITICO: I TASTI COLLEGANO QUI)
+const ASSISTENZA_VOCALE_ID_GENERALE = '1431931307427893390'; 
+const ASSISTENZA_VOCALE_ID_AZIONI = '1431931309214797915'; 
 
 // LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
 const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/1404849559712039033/1432377198555304068/download.png?ex=6900d4b8&is=68ff8338&hm=4a6ac31ff8d490142256f11ca941629947183785bb51744dc3d5ff9f8ef9cd0a&';
@@ -27,7 +31,8 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers, 
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages 
     ]
 });
 
@@ -42,7 +47,7 @@ function keepAlive() {
 client.once('ready', async () => {
     console.log(`Bot pronto! Connesso come ${client.user.tag}`);
     keepAlive();
-    await registerSlashCommands(); 
+    await registerSlashCommandsGlobally(); 
 });
 
 // Funzione per inviare o modificare il pannello dei ticket
@@ -65,15 +70,21 @@ async function sendTicketPanel(channelId) {
         .setThumbnail(NEXUS_LOGO_URL) 
         .setFooter({ text: 'Nexus RP | Sistema Ticket' });
 
-    // Menu a tendina per l'assistenza standard con le CATEGORIE CORRETTE
+    // Menu a tendina con le CATEGORIE CORRETTE E EMOJI
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('select_ticket_standard')
-        .setPlaceholder('Seleziona la Categoria di Assistenza Standard...')
+        .setPlaceholder('Seleziona la Categoria di Assistenza...')
         .addOptions([
-            { label: 'Domanda Generale', value: 'standard_general', description: 'Per domande generiche o informazioni.' },
-            { label: 'Problema Tecnico', value: 'standard_tecnico', description: 'Per problemi con il server o il gioco.' },
-            { label: 'Richiesta Unban', value: 'standard_unban', description: 'Per appellarsi a un ban o sospensione.' },
-            { label: 'Segnalazione', value: 'standard_segnalazione', description: 'Per segnalare un utente o comportamento.' },
+            { label: 'Ticket - Generale', value: 'standard_generale', description: 'Per domande o problemi di carattere generale.', emoji: '❓' },
+            { label: 'Ticket - Permadeath/Wipe', value: 'standard_permadeath_wipe', description: 'Problemi o discussioni relative a Permadeath o Wipe.', emoji: '💀' },
+            { label: 'Ticket - Modifica PG', value: 'standard_modifica_pg', description: 'Per richieste di modifica al proprio personaggio.', emoji: '✏️' },
+            { label: 'Ticket - Bandi AC', value: 'standard_bandi_ac', description: 'Per discutere di bandi e provvedimenti dell\'Admin/Community.', emoji: '🛡️' },
+            { label: 'Ticket - Contesazioni azioni', value: 'standard_contestazioni_azioni', description: 'Per contestare azioni di gioco o dello staff.', emoji: '⚔️' },
+            { label: 'Ticket - Rimborsi', value: 'standard_rimborsi', description: 'Per richiedere rimborsi per perdite dovute a bug o problemi del server.', emoji: '💸' },
+            { label: 'Ticket - Contesazioni BAN', value: 'standard_contestazioni_ban', description: 'Per contestare un ban o una sospensione ricevuta.', emoji: '🔨' },
+            { label: 'Ticket - Acquisti', value: 'standard_acquisti', description: 'Per problemi o domande relative ad acquisti in gioco o donazioni.', emoji: '🛒' },
+            { label: 'Ticket - UnBan', value: 'standard_unban', description: 'Per appellarsi a un ban o sospensione.', emoji: '🔑' },
+            { label: 'Ticket - Richiesta Fazioni', value: 'standard_richiesta_fazioni', description: 'Per richieste o informazioni sull\'apertura di una fazione.', emoji: '🏛️' },
         ]);
 
     // Bottone per l'assistenza prioritaria
@@ -161,6 +172,83 @@ async function createTicket(interaction, type, isPriority = false) {
     }
 }
 
+async function handleConvoca(interaction, convocaType) {
+    const staffRole = interaction.guild.roles.cache.get(STAFF_ROLE_ID);
+    const convocaChannel = interaction.guild.channels.cache.get(CONVOCA_CHANNEL_ID);
+    const motivo = interaction.options.getString('motivo');
+    const targetUser = interaction.options.getUser('utente');
+    
+    // Sceglie l'ID del canale vocale in base al tipo di convocazione
+    const assistenzaVocaleID = convocaType === 'azioni' ? ASSISTENZA_VOCALE_ID_AZIONI : ASSISTENZA_VOCALE_ID_GENERALE;
+
+    if (!staffRole || !convocaChannel) {
+        return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato. Verifica gli ID).', flags: EPHEMERAL_FLAG });
+    }
+
+    // 1. CREA INVITO DINAMICO (o un link statico se preferisci)
+    let inviteLink = null;
+    try {
+        const voiceChannel = interaction.guild.channels.cache.get(assistenzaVocaleID);
+        if (voiceChannel && voiceChannel.type === ChannelType.GuildVoice) {
+            inviteLink = await voiceChannel.createInvite({
+                maxUses: 1,
+                maxAge: 600, // 10 minuti di validità
+                reason: `Convocazione per ${targetUser.tag}`
+            });
+            inviteLink = inviteLink.url;
+        }
+    } catch (error) {
+        console.warn("Impossibile creare l'invito dinamico. Usando link diretto (che potrebbe non funzionare se non è un invito permanente):", error);
+        // Fallback: usa il link al canale vocale. NOTA: DEVE ESSERE UN INVITO PERMANENTE PER FUNZIONARE SENZA PERMESSI
+        inviteLink = `https://discord.com/channels/${interaction.guild.id}/${assistenzaVocaleID}`;
+    }
+
+    // 2. INVIA MESSAGGIO PRIVATO (DM) CON BOTTONE ALL'UTENTE CONVOCATO
+    const dmEmbed = new EmbedBuilder()
+        .setColor('#FF0000') 
+        .setTitle(`🚨 SEI STATO CONVOCATO IN ASSISTENZA 🚨`)
+        .setDescription(`Sei stato convocato dallo Staff di Nexus RP per il seguente motivo:\n\n**Tipo Convocazione:** ${convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale/Informazioni'}\n**Motivo:** ${motivo}\n\nClicca sul pulsante qui sotto per collegarti immediatamente al canale vocale di assistenza.`)
+        .setThumbnail(NEXUS_LOGO_URL);
+
+    const connectButton = new ButtonBuilder()
+        .setLabel('Connettiti al Canale Assistenza')
+        .setStyle(ButtonStyle.Link)
+        .setURL(inviteLink);
+
+    const dmActionRow = new ActionRowBuilder().addComponents(connectButton);
+
+    try {
+        await targetUser.send({ 
+            embeds: [dmEmbed], 
+            components: [dmActionRow] 
+        });
+        
+        // Risposta effimera all'utente che ha eseguito il comando (lo staff)
+        await interaction.reply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. Gli è stato inviato un messaggio privato con il link all'assistenza.`, flags: EPHEMERAL_FLAG });
+
+    } catch (error) {
+        console.error(`Impossibile inviare DM a ${targetUser.tag}:`, error);
+        await interaction.reply({ content: `Hai convocato ${targetUser.tag} per il motivo: **${motivo}**. ATTENZIONE: Non è stato possibile inviare il messaggio privato. Lo staff è stato comunque notificato.`, flags: EPHEMERAL_FLAG });
+    }
+    
+    // 3. INVIA MESSAGGIO PUBBLICO NEL CANALE CONVOCA
+    const convocaEmbed = new EmbedBuilder()
+        .setColor('#FF0000') 
+        .setTitle(`🔔 Nuova Convocazione Pubblica - ${convocaType === 'azioni' ? 'AZIONI' : 'GENERALE'}`)
+        .setDescription(`L'utente ${targetUser} è stato convocato in Assistenza per il motivo: **${motivo}**!`)
+        .addFields(
+            { name: 'Tipo', value: convocaType === 'azioni' ? 'Azioni/Contestazioni' : 'Generale', inline: true },
+            { name: 'Utente Convocato', value: `${targetUser.tag}`, inline: true },
+            { name: 'Collegamento Assistenza', value: `[Clicca qui per collegarti](${inviteLink})`, inline: false }
+        )
+        .setTimestamp();
+        
+    await convocaChannel.send({ 
+        content: `<@&${staffRole.id}>, c'è una nuova convocazione!`, 
+        embeds: [convocaEmbed] 
+    });
+}
+
 client.on('guildMemberAdd', async member => {
     const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
     const rulesChannel = member.guild.channels.cache.get(RULES_CHANNEL_ID);
@@ -199,33 +287,11 @@ client.on('interactionCreate', async interaction => {
         }
         
         if (commandName === 'convoca') { 
-            const staffRole = interaction.guild.roles.cache.get(STAFF_ROLE_ID);
-            const convocaChannel = interaction.guild.channels.cache.get(CONVOCA_CHANNEL_ID);
-            const motivo = interaction.options.getString('motivo');
-
-            // Questa condizione verrà superata con l'ID corretto
-            if (!staffRole || !convocaChannel) {
-                return interaction.reply({ content: 'Errore di configurazione del comando Convoca (canale o ruolo staff non trovato).', flags: EPHEMERAL_FLAG });
-            }
-            
-            await interaction.reply({ content: `Hai richiesto una convocazione per il motivo: **${motivo}**. Lo staff verrà notificato in ${convocaChannel}.`, flags: EPHEMERAL_FLAG });
-
-            const convocaEmbed = new EmbedBuilder()
-                .setColor('#FF0000') 
-                .setTitle(`🔔 Nuova Convocazione Richiesta`)
-                .setDescription(`L'utente ${interaction.member} ha richiesto una convocazione.`)
-                .addFields(
-                    { name: 'Richiesta da', value: `${interaction.member.user.tag} (${interaction.member.id})`, inline: true },
-                    { name: 'Motivo', value: motivo, inline: false }
-                )
-                .setTimestamp();
-                
-            await convocaChannel.send({ 
-                content: `<@&${staffRole.id}>, c'è una nuova convocazione.`, 
-                embeds: [convocaEmbed] 
-            });
-            
-            return;
+            return handleConvoca(interaction, 'generale');
+        }
+        
+        if (commandName === 'convoca_azioni') { 
+            return handleConvoca(interaction, 'azioni');
         }
         
         if (commandName === 'close') {
@@ -261,8 +327,23 @@ client.on('interactionCreate', async interaction => {
 });
 
 
-// Funzione per registrare i comandi slash 
-async function registerSlashCommands() {
+// Funzione per registrare i comandi slash GLOBALMENTE
+async function registerSlashCommandsGlobally() {
+    const commonOptions = [
+        {
+            name: 'motivo',
+            description: 'Il motivo della convocazione. (Obbligatorio)',
+            type: 3, // STRING
+            required: true, 
+        },
+        {
+            name: 'utente',
+            description: 'L\'utente da convocare.',
+            type: 6, // USER
+            required: true, 
+        },
+    ];
+    
     const commands = [
         {
             name: 'setup_ticket_panel',
@@ -274,31 +355,20 @@ async function registerSlashCommands() {
         },
         { 
             name: 'convoca',
-            description: 'Convoca un utente per un colloquio con lo staff.',
-            options: [
-                {
-                    name: 'motivo',
-                    description: 'Il motivo della convocazione.',
-                    type: 3, // STRING
-                    required: true,
-                },
-            ],
+            description: 'Convoca un utente per un colloquio in assistenza generale.',
+            options: commonOptions,
+        },
+        { 
+            name: 'convoca_azioni',
+            description: 'Convoca un utente per un colloquio su azioni/contestazioni.',
+            options: commonOptions,
         },
     ];
 
     try {
-        const client_id = client.user.id;
-        const guild_id = client.guilds.cache.first()?.id; 
-
-        if (!guild_id) {
-            console.warn("Attenzione: Nessuna gilda trovata. I comandi slash potrebbero non registrarsi immediatamente.");
-            return;
-        }
-        
         const rest = client.application.commands;
-        await rest.set(commands, guild_id);
-        
-        console.log('Comandi slash registrati con successo.');
+        await rest.set(commands); 
+        console.log('Comandi slash registrati globalmente con successo.');
     } catch (error) {
         console.error('Errore durante la registrazione dei comandi slash:', inspect(error, true, 5));
     }
