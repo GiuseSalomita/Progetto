@@ -6,10 +6,10 @@ import { inspect } from 'util';
 const EPHEMERAL_FLAG = 1 << 6; 
 
 // --- CONFIGURAZIONE GLOBALE ---
-// Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN
+// Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN 
 const BOT_TOKEN = process.env.BOT_TOKEN; 
 
-// ID CANALI E RUOLI CORRETTI:
+// ID CANALI E RUOLI CORRETTI: 
 const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
 const STAFF_ROLE_ID = '1431931072039340934';
 const CITIZEN_ROLE_ID = '1431247832249603250';
@@ -18,14 +18,14 @@ const PRIORITARIA_CATEGORY_ID = '1431931152110261530';
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 
-// ID DEL CANALE CONVOCA AGGIUNTO (Risolve l'errore /convoca)
+// ID DEL CANALE CONVOCA AGGIUNTO
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
-// LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
+// LINK DI DISCORD CORRETTO
 const NEXUS_LOGO_URL = 'https://cdn.discordapp.com/attachments/1404849559712039033/1432377198555304068/download.png?ex=6900d4b8&is=68ff8338&hm=4a6ac31ff8d490142256f11ca941629947183785bb51744dc3d5ff9f8ef9cd0a&';
 // ------------------------------
 
-// Creazione del client Discord con gli intent necessari
+// Creazione del client Discord con gli intent necessari 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -286,7 +286,7 @@ async function registerSlashCommands() {
             name: 'close',
             description: 'Chiude il canale ticket corrente.',
         },
-        { // COMANDO /CONVOCA AGGIUNTO CON OPZIONE
+        { // COMANDO /CONVOCA CON OPZIONE
             name: 'convoca',
             description: 'Convoca un utente per un colloquio con lo staff.',
             options: [
