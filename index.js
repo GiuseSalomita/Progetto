@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits, ChannelType, PermissionsBitField, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 // --- CONFIGURAZIONE GLOBALE ---
-const BOT_TOKEN = 'MTQzMTk2MDc0MzcxNjA2NTM5MA.G0RM3_.UW5mqtB2pBYzdaDZHtV_iZIEJXMufopYljdj8k'; 
+const BOT_TOKEN = 'MTQzMTk2MDc0MzcxNjA2NTM5MA.Gc3rCC.Zmz67Gi0ZA0U50z8wTUxydgiS9CvBMmfSMDhns'; 
 const TICKET_PANEL_CHANNEL_ID = '1431931296787071027'; 
 const STAFF_ROLE_ID = '1431931072098340934'; 
 const CITIZEN_ROLE_ID = '1431747832246960250';
@@ -531,6 +531,7 @@ client.on('guildMemberAdd', async member => {
     // 2. Invia il messaggio di Benvenuto
     await sendWelcomeMessage(member);
 });
+
 
 
 client.login(BOT_TOKEN);
