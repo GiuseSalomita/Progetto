@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { inspect } from 'util';
 
 // --- CONFIGURAZIONE GLOBALE ---
-const BOT_TOKEN = process.env.BOT_TOKEN; // Prende il token dalle variabili di Render
+const BOT_TOKEN = process.env.BOT_TOKEN; // DEVE ESSERE ESATTAMENTE COSÌ
 const TICKET_PANEL_CHANNEL_ID = '1431931267870710027'; // Canale dove appare il pannello
 const STAFF_ROLE_ID = '1431931072039340934';
 const CITIZEN_ROLE_ID = '1431247832249603250';
@@ -273,3 +273,4 @@ client.once('ready', () => {
 client.login(BOT_TOKEN).catch(err => {
     console.error("ERRORE DI LOGIN:", err);
 });
+
