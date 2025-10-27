@@ -319,3 +319,4 @@ async function registerSlashCommands() {
 client.login(BOT_TOKEN).catch(err => {
     console.error("ERRORE DI LOGIN:", err);
 });
+
