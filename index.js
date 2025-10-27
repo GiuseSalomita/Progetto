@@ -2,8 +2,8 @@ import { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, ActionRowB
 import { createServer } from 'http';
 import { inspect } from 'util';
 
-// Definiamo il flag numerico che sostituisce 'ephemeral: true' (1 << 6 è il valore di InteractionFlags.Ephemeral)
-const EPHEMERAL_FLAG = 1 << 6;
+// DEFINIZIONE DEL FLAG TEMPORANEO (Risolve SyntaxError e Deprecation Warning)
+const EPHEMERAL_FLAG = 1 << 6; 
 
 // --- CONFIGURAZIONE GLOBALE ---
 // Il Token è letto dalla variabile d'ambiente di Render: process.env.BOT_TOKEN
@@ -18,7 +18,7 @@ const PRIORITARIA_CATEGORY_ID = '1431931152110261530';
 const WELCOME_CHANNEL_ID = '143209311299433352';
 const RULES_CHANNEL_ID = '1432093119752886839';
 
-// ID DEL CANALE CONVOCA AGGIUNTO
+// ID DEL CANALE CONVOCA AGGIUNTO (Risolve l'errore /convoca)
 const CONVOCA_CHANNEL_ID = '1431931305926328320'; 
 
 // LINK DI DISCORD CORRETTO PER RISOLVERE L'ERRORE IMAGUR
@@ -110,7 +110,7 @@ async function sendTicketPanel(channelId) {
 
 // Logica per l'apertura del ticket
 async function createTicket(interaction, type, isPriority = false) {
-    // CORREZIONE DEPRECATION: usiamo EPHEMERAL_FLAG
+    // CORREZIONE DEPRECATION
     await interaction.deferReply({ flags: EPHEMERAL_FLAG }); 
 
     const member = interaction.member;
